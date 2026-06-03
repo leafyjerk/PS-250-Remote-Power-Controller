@@ -29,7 +29,7 @@ Go to Tools > Board > Boards Manager.
 In the search bar, type "esp32_bluepad32".
 
 
-install Library 
+install Librarys 
 [LittleFS (for ESP32)](https://github.com/lorol/LITTLEFS) 
 ArduinoJson 
 
