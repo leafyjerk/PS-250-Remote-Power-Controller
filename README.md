@@ -30,7 +30,9 @@ In the search bar, type "esp32_bluepad32".
 
 
 install Librarys 
+
 [LittleFS (for ESP32)](https://github.com/lorol/LITTLEFS) 
+
 ArduinoJson 
 
 <img width="294" height="542" alt="kuva" src="https://github.com/user-attachments/assets/1544a9e2-1a29-4ba2-bede-efac3149f9f3" />
