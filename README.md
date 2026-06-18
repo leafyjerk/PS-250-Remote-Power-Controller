@@ -16,6 +16,7 @@ PS5 Controller Integration: Use DualSense controller to power on PC with PS butt
 WiFi Configuration: Web-based setup with network scanning
 MAC Address Locking: Restrict controller access to specific devices
 Over-the-Air Updates: Firmware updates via web interface
+NeoPixel Lighting: Animated WS2812 strip that lights up while the PC is on
 
 # Installation
 
@@ -35,6 +36,17 @@ In the search bar, type "esp32_bluepad32".
 # Install libraries
 - [LittleFS (for ESP32)](https://github.com/lorol/LITTLEFS) 
 - ArduinoJson 
+- Adafruit NeoPixel 
+
+# NeoPixel wiring
+- WS2812 / NeoPixel strip, 22 LEDs, 5V.
+- Data (DIN) -> ESP32 **GPIO 19** (`NEOPIXEL_PIN` in pins.h; LED count is `NUM_PIXELS` in neopixel.h).
+- Strip 5V is powered from the PSU 5V rail (separate from the ESP32), so the strip
+  is only lit while the PC is on. The firmware only drives data when the PC is on.
+- The strip GND **must** share a common ground with the ESP32.
+- Recommended: ~330-470 ohm resistor in series on the data line, a ~1000uF cap across
+  the strip 5V/GND, and a 3.3V->5V level shifter if the data signal is unreliable.
+- 22 LEDs at full white draw ~1.3A @ 5V; size the rail accordingly.
 
 
 # SETUP Notes

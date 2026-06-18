@@ -7,6 +7,7 @@
 
 #include "version.h"
 #include "pins.h"
+#include "neopixel.h"
 #include "ps5_simple.h"
 
 // IMPORTANT: Include pc_control.h FIRST so PowerState is known
@@ -246,6 +247,9 @@ void setup() {
     
     initPins();
     Serial.println("Pins initialized");
+
+    initNeopixel();
+    Serial.println("NeoPixel initialized");
     
     Serial.print("PC_MONITOR_PIN (14): ");
     Serial.println(digitalRead(PC_MONITOR_PIN) ? "HIGH" : "LOW");
@@ -470,6 +474,18 @@ void loop() {
         }
     }
     
+    // ================ NEOPIXEL ================
+    // The strip is powered from the PSU 5V rail (only on when the PC is on),
+    // so we only drive data when the PC is on. This also avoids backfeeding the
+    // data line into an unpowered strip. updateNeopixel() is non-blocking and
+    // caps its own frame rate.
+    static bool neoPrevPcOn = false;
+    if (pcIsOn) {
+        if (!neoPrevPcOn) neopixelResetTiming();  // fresh frame timer on power-on
+        updateNeopixel();
+    }
+    neoPrevPcOn = pcIsOn;
+
     // ================ SMALL DELAY ================
     delay(1);
 }
