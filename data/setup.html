@@ -275,7 +275,7 @@
       }
     }
     
-    // Hae yhdistetyn ohjaimen MAC
+    // Get the connected controller's MAC
     async function getConnectedControllerMac() {
       try {
         const res = await fetch('/api/ps5/connected-mac');
@@ -291,7 +291,7 @@
       }
     }
     
-    // Lukitse nykyinen ohjain
+    // Lock the current controller
     async function lockCurrentMac() {
       const statusDiv = document.getElementById('controllerStatus');
       statusDiv.innerHTML = '🔍 LOOKING FOR CONTROLLER...';
@@ -301,7 +301,7 @@
         const mac = await getConnectedControllerMac();
         
         if (mac) {
-          // Lähetä MAC tallennettavaksi
+          // Send MAC to be saved
           const config = {
             enabled: document.getElementById('ps5Enabled').checked,
             macAddress: mac,
@@ -319,7 +319,7 @@
             statusDiv.innerHTML = '✅ CONTROLLER LOCKED! MAC: ' + mac;
             statusDiv.style.borderLeftColor = '#00aa00';
             
-            // Päivitä konfiguraatio
+            // Refresh configuration
             loadPS5();
           } else {
             statusDiv.innerHTML = '❌ FAILED TO LOCK CONTROLLER';
@@ -336,7 +336,7 @@
       }
     }
     
-    // Vapauta MAC-lukko
+    // Release the MAC lock
     async function unlockMac() {
       if (!confirm('Are you sure you want to remove MAC lock? This will allow ALL controllers to control the PC.')) {
         return;
@@ -355,13 +355,13 @@
         const data = await res.json();
         
         if (res.ok) {
-          // Päivitä näyttö
+          // Update the display
           document.getElementById('macAddressDisplay').innerText = '--:--:--:--:--:--';
           
           statusDiv.innerHTML = '🔓 ' + data.message;
           statusDiv.style.borderLeftColor = '#aa5500';
           
-          // Lataa konfiguraatio uudelleen
+          // Reload configuration
           loadPS5();
         } else {
           statusDiv.innerHTML = '❌ ERROR: ' + (data.message || 'Unknown error');
@@ -380,7 +380,7 @@
         const data = await res.json();
         document.getElementById('ps5Enabled').checked = data.enabled || false;
         
-        // Päivitä MAC-näyttö
+        // Update MAC display
         const macDisplay = document.getElementById('macAddressDisplay');
         const statusDiv = document.getElementById('controllerStatus');
         
@@ -399,7 +399,7 @@
     }
     
     async function savePS5() {
-      // Haetaan nykyinen MAC näytöltä (voi olla tyhjä)
+      // Get the current MAC from the display (may be empty)
       const macText = document.getElementById('macAddressDisplay').innerText;
       const macAddress = macText === '--:--:--:--:--:--' ? '' : macText;
       
@@ -423,7 +423,7 @@
         if (res.ok) {
           document.getElementById('ps5Status').innerHTML = '✅ SAVED!';
           
-          // Päivitä status
+          // Update status
           const statusDiv = document.getElementById('controllerStatus');
           if (macAddress.length > 0) {
             statusDiv.innerHTML = '🔒 DEVICE LOCKED: Only this controller is allowed';
@@ -441,7 +441,7 @@
       }
     }
     
-    // Päivitä status säännöllisesti
+    // Update status periodically
     async function updateControllerStatus() {
       try {
         const res = await fetch('/api/ps5/connected-mac');
@@ -453,7 +453,7 @@
         if (data.connected && data.macAddress) {
           lockBtn.disabled = false;
           if (currentMac !== data.macAddress && currentMac !== '--:--:--:--:--:--') {
-            // Näytetään että eri ohjain on lähellä
+            // Show that a different controller is nearby
             document.getElementById('controllerStatus').innerHTML = '📱 Different controller detected: ' + data.macAddress;
           }
         } else {

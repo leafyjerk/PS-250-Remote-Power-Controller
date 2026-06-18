@@ -5,7 +5,7 @@
 #include <Arduino.h>
 #include <Bluepad32.h>
 
-// Power-tilakoneen tilat
+// Power state machine states
 enum PowerState {
     POWER_IDLE,
     POWER_ON_START,
@@ -24,33 +24,33 @@ extern bool forceShutdown;
 extern unsigned long forceShutdownStartTime;
 extern const unsigned long forceShutdownDuration;
 
-// Filtteröintimuuttujat
+// Filtering variables
 extern bool filteredPcState;
 extern unsigned long lastPcChangeTime;
 extern const unsigned long pcStableDelay;
 
-// Power-tilakoneen muuttujat
+// Power state machine variables
 extern PowerState powerState;
 extern unsigned long powerStateStartTime;
 
-// ================ GLOBAALIT DEBOUNCE-MUUTTUJAT ================
+// ================ GLOBAL DEBOUNCE VARIABLES ================
 bool debounceLastRaw = false;
 unsigned long debounceLastChange = 0;
 bool debounceStableState = false;
 
-// ================ DEBOUNCE-FUNKTIO ================
+// ================ DEBOUNCE FUNCTION ================
 bool debouncePcState(bool rawState) {
     if (rawState != debounceLastRaw) {
         debounceLastRaw = rawState;
         debounceLastChange = millis();
-        Serial.print("DEBOUNCE: Raakatila muuttui -> ");
+        Serial.print("DEBOUNCE: Raw state changed -> ");
         Serial.println(rawState ? "HIGH" : "LOW");
     }
     
     if (millis() - debounceLastChange >= pcStableDelay) {
         if (debounceStableState != rawState) {
             debounceStableState = rawState;
-            Serial.print("DEBOUNCE: Suodatettu tila vakiintui -> ");
+            Serial.print("DEBOUNCE: Filtered state settled -> ");
             Serial.println(debounceStableState ? "HIGH" : "LOW");
         }
     }
@@ -77,7 +77,7 @@ void initPins() {
     digitalWrite(STATUS_LED_PIN, HIGH);
     digitalWrite(EXTRA_PIN, LOW);
     
-    // Alusta debounce-muuttujat
+    // Initialize debounce variables
     debounceLastRaw = initial;
     debounceStableState = initial;
     filteredPcState = initial;
@@ -89,13 +89,13 @@ void initPins() {
     powerState = POWER_IDLE;
 }
 
-// ================ KORJATTU updatePcState() ESP.restart() KANSSA ================
+// ================ FIXED updatePcState() WITH ESP.restart() ================
 void updatePcState() {
     bool currentMonitor = digitalRead(PC_MONITOR_PIN);
     bool newFilteredState = debouncePcState(currentMonitor);
     
     if (newFilteredState != filteredPcState) {
-        Serial.print(">>> PC TILAN MUUTOS: ");
+        Serial.print(">>> PC STATE CHANGE: ");
         Serial.print(filteredPcState ? "ON" : "OFF");
         Serial.print(" -> ");
         Serial.print(newFilteredState ? "ON" : "OFF");
@@ -105,12 +105,12 @@ void updatePcState() {
         filteredPcState = newFilteredState;
     }
     
-    // Käsittele PC:n tilan muutokset
+    // Handle PC state changes
     if (filteredPcState != pcIsOn) {
-        
+
         if (filteredPcState == HIGH) {
-            // PC KÄYNNISTYI
-            Serial.println("*** PC KÄYNNISTYI ***");
+            // PC POWERED ON
+            Serial.println("*** PC POWERED ON ***");
             pcIsOn = true;
             shutdownRequested = false;
             forceShutdown = false;
@@ -120,8 +120,8 @@ void updatePcState() {
                 digitalWrite(POWER_LED_PIN, HIGH);
             }
         } else {
-            // PC SAMMUI
-            Serial.println("*** PC SAMMUI ***");
+            // PC POWERED OFF
+            Serial.println("*** PC POWERED OFF ***");
             pcIsOn = false;
             shutdownRequested = false;
             forceShutdown = false;
@@ -130,10 +130,10 @@ void updatePcState() {
                 digitalWrite(OPTO_PIN, LOW);
                 digitalWrite(POWER_LED_PIN, LOW);
                 
-                // ================ ESP.restart() PC:N SAMMUESSA ================
-                // Tämä tyhjentää Bluepad32:n tilat ja mahdollistaa
-                // ohjaimen uudelleenhavaitsemisen
-                Serial.println("PC sammui - Käynnistetään ESP32 uudelleen 2 sekunnin kuluttua...");
+                // ================ ESP.restart() WHEN PC POWERS OFF ================
+                // This clears Bluepad32's states and allows
+                // the controller to be re-detected
+                Serial.println("PC turned off - Restarting ESP32 in 2 seconds...");
                 delay(2000);
                 ESP.restart();
             }
@@ -141,7 +141,7 @@ void updatePcState() {
     }
 }
 
-// KÄYNNISTYS
+// POWER ON
 void startPowerOn() {
     if (filteredPcState == HIGH) {
         Serial.println("PC already on");
@@ -158,7 +158,7 @@ void startPowerOn() {
     powerStateStartTime = millis();
 }
 
-// NORMAALI SAMMUTUS
+// NORMAL SHUTDOWN
 void startNormalShutdown() {
     if (filteredPcState == LOW) {
         Serial.println("PC already off");
@@ -175,7 +175,7 @@ void startNormalShutdown() {
     powerStateStartTime = millis();
 }
 
-// PAKKOSAMMUTUS
+// FORCE SHUTDOWN
 void startForceShutdown() {
     if (filteredPcState == LOW) {
         Serial.println("PC already off");
@@ -192,7 +192,7 @@ void startForceShutdown() {
     powerStateStartTime = millis();
 }
 
-// POWER-TILOJEN HALLINTA
+// POWER STATE MANAGEMENT
 void handlePowerStates() {
     unsigned long now = millis();
     
@@ -218,7 +218,7 @@ void handlePowerStates() {
             
         case POWER_ON_COMPLETE:
             if (now - powerStateStartTime >= 8000) {
-                if (filteredPcState == HIGH) {  // KÄYTÄ SUODATETTUA TILAA
+                if (filteredPcState == HIGH) {  // USE FILTERED STATE
                     Serial.println("PC power-on confirmed - PC is now running");
                 } else {
                     Serial.println("WARNING: PC did not power on! Turning relay OFF");
@@ -247,8 +247,8 @@ void handlePowerStates() {
             break;
             
         case POWER_OFF_WAITING_POWEROFF:
-            // Odotetaan että PC sammuu (filteredPcState menee LOW) JA pysyy siinä 4 sekuntia
-            if (filteredPcState == LOW) {  // KÄYTÄ SUODATETTUA TILAA
+            // Wait for the PC to power off (filteredPcState goes LOW) AND stay there for 4 seconds
+            if (filteredPcState == LOW) {  // USE FILTERED STATE
                 if (now - powerStateStartTime >= 4000) {
                     Serial.println("PC power-off confirmed - turning relay OFF");
                     digitalWrite(OPTO_PIN, LOW);
@@ -258,7 +258,7 @@ void handlePowerStates() {
                     Serial.println("PC OFF - Controller reset handled elsewhere");
                 }
             } else {
-                // PC ei ole vielä sammunut, nollataan ajastin
+                // PC hasn't powered off yet, reset the timer
                 powerStateStartTime = now;
             }
             break;
@@ -296,7 +296,7 @@ void handlePcStates() {
         }
     }
     
-    // BLUETOOTH OHJAUS PC:N TILAN MUKAAN
+    // BLUETOOTH CONTROL BASED ON PC STATE
     static bool lastBTPcState = false;
     if (filteredPcState != lastBTPcState) {
         if (filteredPcState == HIGH) {

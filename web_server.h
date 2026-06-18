@@ -24,7 +24,7 @@ extern bool wifiConfigured;
 extern bool apMode;
 extern PS5Simple ps5Simple;
 
-// Funktioprototyypit
+// Function prototypes
 void saveWiFiConfig(String ssid, String pass);
 bool getStablePcState();
 void startPowerOn();
@@ -87,11 +87,11 @@ void setupWebServer() {
     
     Serial.println("Setting up web server routes...");
     
-    // ========== TÄRKEÄÄ: POST-reitit ENNEN GET-reittejä! ==========
-    
-    // FIRMWARE UPDATE - POST (tämä käsittelee tiedoston lähetyksen)
+    // ========== IMPORTANT: POST routes BEFORE GET routes! ==========
+
+    // FIRMWARE UPDATE - POST (this handles the file upload)
     server.on("/update", HTTP_POST, []() {
-        // Tämä suoritetaan kun upload on valmis
+        // This runs when the upload is complete
         if (Update.hasError()) {
             server.send(500, "text/plain", "Update failed!");
             Serial.println("Update failed!");
@@ -102,7 +102,7 @@ void setupWebServer() {
             ESP.restart();
         }
     }, []() {
-        // Tämä suoritetaan uploadin aikana
+        // This runs during the upload
         HTTPUpload& upload = server.upload();
         
         if (upload.status == UPLOAD_FILE_START) {
@@ -115,7 +115,7 @@ void setupWebServer() {
             if (Update.write(upload.buf, upload.currentSize) != upload.currentSize) {
                 Update.printError(Serial);
             }
-            // Tulosta edistyminen joka 100kB välein
+            // Print progress every 100kB
             static unsigned int lastProgress = 0;
             unsigned int progress = (Update.progress() * 100) / Update.size();
             if (progress / 10 != lastProgress / 10) {
@@ -131,27 +131,27 @@ void setupWebServer() {
         }
     });
     
-    // FIRMWARE UPDATE - GET (näyttää web-sivun)
+    // FIRMWARE UPDATE - GET (shows the web page)
     server.on("/update", HTTP_GET, []() {
         server.send(200, "text/html", updateHtml);
     });
     
-    // Etusivu
+    // Home page
     server.on("/", []() {
         server.send(200, "text/html", indexHtml);
     });
     
-    // Setup-sivu
+    // Setup page
     server.on("/setup", []() {
         server.send(200, "text/html", setupHtml);
     });
     
-    // CSS-tyylit
+    // CSS styles
     server.on("/style.css", []() {
         server.send(200, "text/css", styleCss);
     });
 
-    // SVG-logo
+    // SVG logo
     server.on("/steam-machines.svg", []() {
         if (LittleFS.exists("/steam-machines.svg")) {
             File file = LittleFS.open("/steam-machines.svg", "r");
@@ -165,7 +165,7 @@ void setupWebServer() {
         }
     });
 
-    // API: Bluetooth MAC-osoite
+    // API: Bluetooth MAC address
     server.on("/api/bluetooth/mac", HTTP_GET, []() {
         String btMac = "";
         const uint8_t* addr = BP32.localBdAddress();
@@ -184,7 +184,7 @@ void setupWebServer() {
         server.send(200, "application/json", response);
     });
 
-    // API: WiFi-asetukset - GET
+    // API: WiFi settings - GET
     server.on("/api/wifi/config", HTTP_GET, []() {
         StaticJsonDocument<200> doc;
         doc["ssid"] = wifiSSID;
@@ -196,7 +196,7 @@ void setupWebServer() {
         server.send(200, "application/json", response);
     });
     
-    // API: WiFi-asetukset - POST
+    // API: WiFi settings - POST
     server.on("/api/wifi/config", HTTP_POST, []() {
         if (!server.hasArg("plain")) {
             server.send(400, "text/plain", "Body missing");
@@ -229,7 +229,7 @@ void setupWebServer() {
         ESP.restart();
     });
     
-    // API: WiFi skannaus
+    // API: WiFi scan
     server.on("/api/wifi/scan", HTTP_GET, []() {
         int n = WiFi.scanComplete();
         if (n == -2) {
@@ -289,7 +289,7 @@ void setupWebServer() {
         }
     });
 
-    // API: Power OFF (pakkosammutus)
+    // API: Power OFF (force shutdown)
     server.on("/power/off", HTTP_POST, []() {
         Serial.println("API: Power OFF requested");
         if (getStablePcState() == HIGH) {
@@ -311,7 +311,7 @@ void setupWebServer() {
         }
     });
 
-    // API: PS5 konfiguraatio - GET
+    // API: PS5 configuration - GET
     server.on("/api/ps5/config", HTTP_GET, []() {
         StaticJsonDocument<300> doc;
         doc["macAddress"] = ps5MacAddress;
@@ -334,7 +334,7 @@ void setupWebServer() {
             
             if (upload.status == UPLOAD_FILE_START) {
                 Serial.printf("LittleFS Update: %s\n", upload.filename.c_str());
-                if (!Update.begin(UPDATE_SIZE_UNKNOWN, U_SPIFFS)) {  // HUOM: U_SPIFFS!
+                if (!Update.begin(UPDATE_SIZE_UNKNOWN, U_SPIFFS)) {  // NOTE: U_SPIFFS!
                     Update.printError(Serial);
                 }
             } else if (upload.status == UPLOAD_FILE_WRITE) {
@@ -350,7 +350,7 @@ void setupWebServer() {
             }
         });
 
-    // API: PS5 konfiguraatio - POST
+    // API: PS5 configuration - POST
     server.on("/api/ps5/config", HTTP_POST, []() {
         if (!server.hasArg("plain")) {
             server.send(400, "text/plain", "Body missing");
@@ -401,7 +401,7 @@ void setupWebServer() {
         server.send(200, "application/json", response);
     });
 
-    // API: Hae yhdistetyn ohjaimen MAC-osoite
+    // API: Get the connected controller's MAC address
     server.on("/api/ps5/connected-mac", HTTP_GET, []() {
         StaticJsonDocument<200> doc;
         
@@ -428,9 +428,9 @@ void setupWebServer() {
         server.send(200, "application/json", response);
     }); 
 
-    // API: Vapauta MAC-lukko
+    // API: Release the MAC lock
     server.on("/api/ps5/unlock", HTTP_POST, []() {
-        Serial.println("PS5: MAC-lukko vapautetaan");
+        Serial.println("PS5: Releasing MAC lock");
         
         savePS5Config(ps5Enabled, "", ps5AutoConnect);
         

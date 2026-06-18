@@ -81,7 +81,7 @@
       }
     }
     
-    // Native JavaScript - ei jQueryä!
+    // Native JavaScript - no jQuery!
     document.getElementById('upload_form').addEventListener('submit', async function(e) {
       e.preventDefault();
       
@@ -103,7 +103,7 @@
       try {
         const xhr = new XMLHttpRequest();
         
-        // Seuraa edistymistä
+        // Track upload progress
         xhr.upload.addEventListener('progress', function(e) {
           if (e.lengthComputable) {
             const percentComplete = Math.round((e.loaded / e.total) * 100);
@@ -111,12 +111,12 @@
           }
         });
         
-        // Kun valmis
+        // When complete
         xhr.addEventListener('load', function() {
           if (xhr.status === 200) {
             progressDiv.innerHTML = '✅ UPDATE SUCCESSFUL!<br>ESP32 is rebooting...<br><br><i class="bx bx-loader-alt bx-spin"></i> Reconnecting in 10 seconds...';
             
-            // Yritä yhdistää uudelleen 10 sekunnin kuluttua
+            // Try to reconnect after 10 seconds
             setTimeout(() => {
               window.location.href = '/';
             }, 10000);
@@ -125,12 +125,12 @@
           }
         });
         
-        // Virheenkäsittely
+        // Error handling
         xhr.addEventListener('error', function() {
           progressDiv.innerHTML = '❌ NETWORK ERROR!<br>Check connection and try again.';
         });
         
-        // Lähetä pyyntö
+        // Send the request
         xhr.open('POST', '/update', true);
         xhr.send(formData);
         
@@ -140,7 +140,7 @@
       }
     });
     
-    // Lataa versio sivun latautuessa
+    // Load version when the page loads
     fetchVersion();
   </script>
 </body>

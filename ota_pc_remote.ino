@@ -9,10 +9,10 @@
 #include "pins.h"
 #include "ps5_simple.h"
 
-// TÄRKEÄÄ: Include pc_control.h ENSIN, jotta PowerState tunnetaan
+// IMPORTANT: Include pc_control.h FIRST so PowerState is known
 #include "pc_control.h"
 
-// Globaalit muuttujat
+// Global variables
 WebServer server(80);
 
 bool pcIsOn = false;
@@ -21,19 +21,19 @@ bool forceShutdown = false;
 unsigned long forceShutdownStartTime = 0;
 const unsigned long forceShutdownDuration = 5000;
 
-// WiFi-muuttujat
+// WiFi variables
 String wifiSSID = "";
 String wifiPassword = "";
 bool wifiConfigured = false;
 bool apMode = false;
 
-// PS5-muuttujat
+// PS5 variables
 String ps5MacAddress = "";
 bool ps5Enabled = false;
 bool ps5AutoConnect = false;
 unsigned long lastPS5ConnectionAttempt = 0;
 
-// OPTIMOIDUT INTERVALLIT
+// OPTIMIZED INTERVALS
 unsigned long lastPinRead = 0;
 const unsigned long pinReadInterval = 50;
 
@@ -46,46 +46,46 @@ const unsigned long pcStateHandleInterval = 50;
 unsigned long lastButtonDebounce = 0;
 const unsigned long debounceDelay = 50;
 
-// Välimuistissa olevat pinnien tilat
+// Cached pin states
 bool cachedButtonState = HIGH;
 bool lastStableButtonState = HIGH;
 bool buttonPressed = false;
 
-// Filtteröity PC:n tila
+// Filtered PC state
 bool filteredPcState = false;
 unsigned long lastPcChangeTime = 0;
 const unsigned long pcStableDelay = 100;
 
-// Power-tilakoneen muuttujat
+// Power state machine variables
 PowerState powerState = POWER_IDLE;
 unsigned long powerStateStartTime = 0;
 
-// PS5-luokka
+// PS5 class
 PS5Simple ps5Simple;
 
-// ================ PROTOTYYPIT ================
+// ================ PROTOTYPES ================
 bool getStablePcState();
 void startPowerOn();
 void startForceShutdown();
 void startNormalShutdown();
 void savePS5Config(bool enabled, String mac, bool autoConnect);
 
-// ================ CALLBACK-FUNKTIOT ================
+// ================ CALLBACK FUNCTIONS ================
 void onConnectedGamepad(GamepadPtr gp) {
-    Serial.println("=== UUSI OHJAIN HAVAITTU ===");
+    Serial.println("=== NEW CONTROLLER DETECTED ===");
     if (gp != nullptr) {
         ps5Simple.onControllerConnected(gp);
     }
 }
 
 void onDisconnectedGamepad(GamepadPtr gp) {
-    Serial.println("=== OHJAIN IRROTTUNUT ===");
+    Serial.println("=== CONTROLLER DISCONNECTED ===");
     ps5Simple.onControllerDisconnected(gp);
 }
 
 #include "web_server.h"
 
-// ================ WiFi-konfiguraatio ================
+// ================ WiFi configuration ================
 
 void saveWiFiConfig(String ssid, String pass) {
     File file = LittleFS.open("/wifi_config.json", "w");
@@ -168,11 +168,11 @@ bool connectToWiFi() {
     }
 }
 
-// ================ PC-tilan suodatus ================
+// ================ PC state filtering ================
 
 
 
-// ================ PS5-funktiot ================
+// ================ PS5 functions ================
 
 void savePS5Config(bool enabled, String mac, bool autoConnect) {
     File file = LittleFS.open("/ps5_config.json", "w");
@@ -205,7 +205,7 @@ void loadPS5Config() {
         ps5MacAddress = "";
         ps5AutoConnect = false;
         ps5Simple.setAllowedMac("");
-        Serial.println("PS5: Ei konfiguraatiota - kaikki ohjaimet sallittu");
+        Serial.println("PS5: No configuration - all controllers allowed");
         return;
     }
     
@@ -221,7 +221,7 @@ void loadPS5Config() {
         ps5MacAddress = "";
         ps5AutoConnect = false;
         ps5Simple.setAllowedMac("");
-        Serial.println("PS5: Konfiguraatio virheellinen - kaikki ohjaimet sallittu");
+        Serial.println("PS5: Configuration invalid - all controllers allowed");
         return;
     }
     
@@ -231,7 +231,7 @@ void loadPS5Config() {
     
     ps5Simple.setAllowedMac(ps5MacAddress);
     
-    Serial.print("PS5: Lataus valmis - MAC: '");
+    Serial.print("PS5: Load complete - MAC: '");
     Serial.print(ps5MacAddress);
     Serial.print("', enabled: ");
     Serial.println(ps5Enabled);
@@ -251,7 +251,7 @@ void setup() {
     Serial.println(digitalRead(PC_MONITOR_PIN) ? "HIGH" : "LOW");
     Serial.print("OPTO_PIN (16): ");
     Serial.println(digitalRead(OPTO_PIN) ? "HIGH" : "LOW");
-    Serial.print("EXTRA_PIN (32): ");  // LISÄTTY: EXTRA_PIN tila
+    Serial.print("EXTRA_PIN (32): ");  // ADDED: EXTRA_PIN state
     Serial.println(digitalRead(EXTRA_PIN) ? "HIGH" : "LOW");
     
     filteredPcState = digitalRead(PC_MONITOR_PIN);
@@ -282,7 +282,7 @@ void setup() {
 
     Serial.println("Setting up Bluepad32...");
     
-    // VAIN NÄMÄ KAKSI RIVIÄ TARVITAAN
+    // ONLY THESE TWO LINES ARE NEEDED
     BP32.setup(&onConnectedGamepad, &onDisconnectedGamepad);
     BP32.enableVirtualDevice(false);
     
@@ -300,24 +300,24 @@ void setup() {
 void loop() {
     unsigned long now = millis();
     
-    // ================ YKSINKERTAINEN RATKAISU: ESP32 UUDELLEENKÄYNNISTYS ================
+    // ================ SIMPLE SOLUTION: ESP32 RESTART ================
     static unsigned long pcOffStartTime = 0;
-    
-    // Seuraa kuinka kauan PC on ollut sammuneena
+
+    // Track how long the PC has been off
     if (!pcIsOn && powerState == POWER_IDLE) {
         if (pcOffStartTime == 0) {
             pcOffStartTime = now;
-            Serial.println("PC sammui - uudelleenkäynnistys 2 tunnin kuluttua");
+            Serial.println("PC turned off - restart in 2 hours");
         }
         
-        // JOS PC OLLUT SAMMUNEENA YLI 2 TUNTIA, KÄYNNISTÄ ESP32 UUDELLEEN
-        if (now - pcOffStartTime >= 7200000) { // 2 tuntia = 7200000 ms
-            Serial.println("=== PC ollut sammuneena 2 tuntia - ESP32 UUDELLEENKÄYNNISTYS ===");
+        // IF PC HAS BEEN OFF FOR OVER 2 HOURS, RESTART ESP32
+        if (now - pcOffStartTime >= 7200000) { // 2 hours = 7200000 ms
+            Serial.println("=== PC has been off for 2 hours - ESP32 RESTART ===");
             delay(1000);
             ESP.restart();
         }
     } else {
-        // PC on päällä tai käynnistymässä - nollaa ajastin
+        // PC is on or starting up - reset the timer
         pcOffStartTime = 0;
     }
     
@@ -326,7 +326,7 @@ void loop() {
     static PowerState lastPowerState = POWER_IDLE;
     
     if (powerState != lastPowerState) {
-        // Tila on vaihtunut, tulosta uusi tila
+        // State has changed, print the new state
         Serial.print("STATE: ");
         switch(powerState) {
             case POWER_IDLE: Serial.print("IDLE"); break;
@@ -349,7 +349,7 @@ void loop() {
         lastStatePrint = now;
     }
     
-    // Tulosta tila 60 sekunnin välein
+    // Print state every 60 seconds
     if (now - lastStatePrint >= 60000) {
         Serial.print("HEARTBEAT: ");
         Serial.print(millis() / 1000);
@@ -358,9 +358,9 @@ void loop() {
             case POWER_IDLE: 
                 Serial.print("IDLE");
                 if (!pcIsOn) {
-                    Serial.print(" (uudelleenkäynnistys ");
+                    Serial.print(" (restart in ");
                     Serial.print((7200000 - (now - pcOffStartTime)) / 1000);
-                    Serial.print("s kuluttua)");
+                    Serial.print("s)");
                 }
                 break;
             case POWER_ON_START: Serial.print("ON_START"); break;
@@ -379,33 +379,33 @@ void loop() {
         lastStatePrint = now;
     }
 
-    // ================ PINNIN LUKU ================
+    // ================ PIN READ ================
     if (now - lastPinRead >= pinReadInterval) {
         cachedButtonState = digitalRead(BUTTON_PIN);
         lastPinRead = now;
     }
 
-    // ================ PC:N TILAN KÄSITTELY ================
+    // ================ PC STATE HANDLING ================
     if (now - lastPcStateHandle >= pcStateHandleInterval) {
         handlePcStates();
         lastPcStateHandle = now;
     }
 
-    // ================ POWER-TILOJEN KÄSITTELY ================
+    // ================ POWER STATE HANDLING ================
     handlePowerStates();
 
-    // ================ WEB-PALVELIN ================
+    // ================ WEB SERVER ================
     if (now - lastServerHandle >= serverHandleInterval) {
         server.handleClient();
         lastServerHandle = now;
     }
     
-    // ================ PS5-OHJAIMEN KÄSITTELY ================
-    // Vain jos PC on sammunut ja idle-tilassa
+    // ================ PS5 CONTROLLER HANDLING ================
+    // Only if the PC is off and in idle state
     if (!pcIsOn && powerState == POWER_IDLE) {
         ps5Simple.handle();
     } else {
-        // PC on päällä - älä käsittele PS5:sta, mutta päivitä Bluepad32
+        // PC is on - don't handle PS5, but update Bluepad32
         static unsigned long lastBP32Update = 0;
         if (now - lastBP32Update >= 100) {
             BP32.update();
@@ -413,63 +413,63 @@ void loop() {
         }
     }
     
-    // ================ PAINIKKEEN KÄSITTELY ================
+    // ================ BUTTON HANDLING ================
     static unsigned long buttonPressStartTime = 0;
     static bool buttonPressDetected = false;
     static bool lastStableButtonState = HIGH;
     
-    // Tarkista painikkeen tila debouncella
+    // Check button state with debounce
     if (cachedButtonState != lastStableButtonState) {
         lastButtonDebounce = now;
         lastStableButtonState = cachedButtonState;
     }
     
-    // Jos tila on vakaa (debounce ohi)
+    // If state is stable (debounce passed)
     if ((now - lastButtonDebounce) > debounceDelay) {
         
-        // Painike painettiin alas (LOW)
+        // Button was pressed down (LOW)
         if (cachedButtonState == LOW && !buttonPressDetected) {
             buttonPressDetected = true;
             buttonPressStartTime = now;
-            Serial.println("BUTTON: Painike painettu alas");
+            Serial.println("BUTTON: Button pressed down");
         }
         
-        // Painike vapautettiin (HIGH)
+        // Button was released (HIGH)
         if (cachedButtonState == HIGH && buttonPressDetected) {
             unsigned long pressDuration = now - buttonPressStartTime;
             buttonPressDetected = false;
             
-            Serial.print("BUTTON: Painike vapautettu - kesto: ");
+            Serial.print("BUTTON: Button released - duration: ");
             Serial.print(pressDuration);
             Serial.println(" ms");
             
-            // Tarkista PC:n tila (vain IDLE-tilassa)
+            // Check PC state (only in IDLE state)
             if (powerState == POWER_IDLE) {
                 bool pcOn = getStablePcState();
                 
                 if (pcOn) {
-                    // PC ON PÄÄLLÄ
+                    // PC IS ON
                     if (pressDuration >= 5000) {
-                        // Pitkä painallus (yli 5s) = PAKKOSAMMUTUS
-                        Serial.println("BUTTON: Pitkä painallus (>5s) - PAKKOSAMMUTUS");
+                        // Long press (over 5s) = FORCE SHUTDOWN
+                        Serial.println("BUTTON: Long press (>5s) - FORCE SHUTDOWN");
                         startForceShutdown();
                     } else {
-                        // Lyhyt painallus (alle 5s) = NORMAALI SAMMUTUS
-                        Serial.println("BUTTON: Lyhyt painallus (<5s) - NORMAALI SAMMUTUS");
+                        // Short press (under 5s) = NORMAL SHUTDOWN
+                        Serial.println("BUTTON: Short press (<5s) - NORMAL SHUTDOWN");
                         startNormalShutdown();
                     }
                 } else {
-                    // PC ON SAMMUNUT
-                    Serial.println("BUTTON: PC sammunut - KÄYNNISTYS");
+                    // PC IS OFF
+                    Serial.println("BUTTON: PC is off - POWER ON");
                     startPowerOn();
                 }
             } else {
-                Serial.print("BUTTON: Power-tila ei IDLE - komento hylätty. Nykyinen tila: ");
+                Serial.print("BUTTON: Power state not IDLE - command rejected. Current state: ");
                 Serial.println(powerState);
             }
         }
     }
     
-    // ================ PIENI VIIVE ================
+    // ================ SMALL DELAY ================
     delay(1);
 }
