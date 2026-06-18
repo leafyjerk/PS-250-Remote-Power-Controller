@@ -40,7 +40,7 @@ const float W_LASER=1.00;
 // ===== look controls =====
 const float SHADE_SPEED=0.15;   // slow hue drift (rainbow as shade variation)
 const float CONTRAST   =1.15;   // 1.0 = neutral, higher = snappier
-const float MASTER     =0.70;   // overall brightness
+const float MASTER     =0.85;   // overall brightness
 
 unsigned long neoLastMicros;
 float neoT=0;
