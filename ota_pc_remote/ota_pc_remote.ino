@@ -475,16 +475,12 @@ void loop() {
     }
     
     // ================ NEOPIXEL ================
-    // The strip is powered from the PSU 5V rail (only on when the PC is on),
-    // so we only drive data when the PC is on. This also avoids backfeeding the
-    // data line into an unpowered strip. updateNeopixel() is non-blocking and
-    // caps its own frame rate.
-    static bool neoPrevPcOn = false;
-    if (pcIsOn) {
-        if (!neoPrevPcOn) neopixelResetTiming();  // fresh frame timer on power-on
-        updateNeopixel();
-    }
-    neoPrevPcOn = pcIsOn;
+    // The strip is powered from the PSU 5V rail, which only turns on once the
+    // ESP32 has switched the PSU on - so the strip only has power while the
+    // system is running. We therefore drive the animation unconditionally; it
+    // is only ever visible when the strip is powered. updateNeopixel() is
+    // non-blocking and caps its own frame rate.
+    updateNeopixel();
 
     // ================ SMALL DELAY ================
     delay(1);
