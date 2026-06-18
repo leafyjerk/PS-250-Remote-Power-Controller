@@ -1,8 +1,11 @@
 
-
-
 # BC-250 REMOTE PSU POWER CONTROLLER
 ESP32 2-Channel 5V Relay Module-based device for remote control of the BC-250 atx power supply with web interface and PS5 controller support.
+
+> **Credits / Attribution**
+> This project is a modified version of [BC-250-PC-Remote-Control](https://github.com/PetteriLah/BC-250-PC-Remote-Control)
+> by **[PetteriLah](https://github.com/PetteriLah)**. All original work and the core design are his.
+> This fork contains my own modifications. See [`NOTICE`](NOTICE) for details.
 
 <img width="909" height="541" alt="wires" src="https://github.com/user-attachments/assets/8f6ec507-48f0-44cf-aa08-43292f0b47fc" />
 

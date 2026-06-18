@@ -1,0 +1,20 @@
+This project is a derivative work based on:
+
+    BC-250-PC-Remote-Control
+    Copyright (c) PetteriLah
+    https://github.com/PetteriLah/BC-250-PC-Remote-Control
+
+The original author created the core firmware, web interface, and PS5
+controller integration. This repository is a modified version maintained
+by a different author and is not affiliated with or endorsed by the
+original author.
+
+The full commit history of the original project is preserved in this
+repository's git history, which records the original authorship of all
+upstream commits.
+
+NOTE ON LICENSE:
+The upstream repository does not include an explicit license file. Absent
+a license, the original work is "all rights reserved" by default. This
+NOTICE is provided to credit the original author. If you intend to
+redistribute, please confirm licensing terms with the original author.
