@@ -475,12 +475,19 @@ void loop() {
     }
     
     // ================ NEOPIXEL ================
-    // The strip is powered from the PSU 5V rail, which only turns on once the
-    // ESP32 has switched the PSU on - so the strip only has power while the
-    // system is running. We therefore drive the animation unconditionally; it
-    // is only ever visible when the strip is powered. updateNeopixel() is
+    // The strip is powered from 5V standby (always powered), so the firmware
+    // must control whether it lights up: animate while the machine is on, and
+    // actively blank the strip when the machine is off (otherwise it would run
+    // 24/7). pcIsOn tracks the machine's running state. updateNeopixel() is
     // non-blocking and caps its own frame rate.
-    updateNeopixel();
+    static bool neoPrevPcOn = false;
+    if (pcIsOn) {
+        if (!neoPrevPcOn) neopixelResetTiming();  // fresh frame timer on power-on
+        updateNeopixel();
+    } else if (neoPrevPcOn) {
+        neopixelClear();                          // machine just turned off -> blank
+    }
+    neoPrevPcOn = pcIsOn;
 
     // ================ SMALL DELAY ================
     delay(1);

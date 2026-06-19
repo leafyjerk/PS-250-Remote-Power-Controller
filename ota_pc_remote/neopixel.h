@@ -104,8 +104,12 @@ float lasI(float x,float tg){
 void initNeopixel(){ strip.begin(); strip.setBrightness(255); strip.show(); neoLastMicros=micros(); }
 
 // Reset the frame timer so the next updateNeopixel() starts cleanly (e.g. after
-// the strip has been unpowered while the PC was off).
+// the strip has been blanked while the machine was off).
 void neopixelResetTiming(){ neoLastMicros=micros(); }
+
+// Turn all LEDs off. Needed because the strip is powered from 5V standby (always
+// powered), so when the machine is off we must actively blank it.
+void neopixelClear(){ strip.clear(); strip.show(); }
 
 // Was loop() in the standalone sketch. Call repeatedly; renders at most one
 // frame per NEO_FRAME_US. Returns immediately between frames.

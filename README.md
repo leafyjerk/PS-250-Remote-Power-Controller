@@ -41,10 +41,12 @@ In the search bar, type "esp32_bluepad32".
 # NeoPixel wiring
 - WS2812 / NeoPixel strip, 22 LEDs, 5V.
 - Data (DIN) -> ESP32 **GPIO 19** (`NEOPIXEL_PIN` in pins.h; LED count is `NUM_PIXELS` in neopixel.h).
-- Strip 5V is powered from the PSU 5V rail, which only turns on once the ESP32
-  switches the PSU on - so the strip only has power while the system is running.
-  The firmware drives the animation unconditionally; it is only ever visible when
-  the strip is powered.
+- Strip 5V is powered from the PSU **5V standby** rail (always powered). The
+  firmware animates the strip while the machine is on and blanks it (LEDs off)
+  when the machine is off, so it only lights up while the system is running.
+- Because it runs off standby, make sure the 5VSB rail can supply the strip's
+  draw (22 LEDs ~1.1A @ MASTER 0.85). When the machine is off the strip is blanked,
+  so standby draw is just the LEDs' idle current (~20mA).
 - The strip GND **must** share a common ground with the ESP32.
 - Recommended: ~330-470 ohm resistor in series on the data line, a ~1000uF cap across
   the strip 5V/GND, and a 3.3V->5V level shifter if the data signal is unreliable.
