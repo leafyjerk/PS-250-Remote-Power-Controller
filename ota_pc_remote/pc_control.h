@@ -68,33 +68,35 @@ void initPins() {
     pinMode(STATUS_LED_PIN, OUTPUT);
     pinMode(POWER_LED_PIN, OUTPUT);
     pinMode(BUTTON_PIN, INPUT_PULLUP);
-    // INPUT_PULLDOWN so GPIO4 reads LOW when the BC-250 isn't actively driving
-    // TPMS1 pin 9 high. Without it the pin floats HIGH at boot; initPins mirrors
-    // that to OPTO_PIN (auto-powering the PSU), then it drops LOW and the
-    // firmware ESP.restart()s on "PC off" -> endless boot loop (confirmed via
-    // serial). Verified on hardware 2026-06-20.
+    // INPUT_PULLDOWN so GPIO4 reads LOW (PC off) when the BC-250 isn't actively
+    // driving TPMS1 pin 9 high, rather than floating. The BC-250's 3V signal
+    // easily overrides this when actually running.
     pinMode(PC_MONITOR_PIN, INPUT_PULLDOWN);
     pinMode(EXTRA_PIN, OUTPUT);
     
-    bool initial = digitalRead(PC_MONITOR_PIN);
-    digitalWrite(OPTO_PIN, initial ? HIGH : LOW);
-    digitalWrite(POWER_LED_PIN, initial ? HIGH : LOW);
+    // Always boot with the PSU OFF and assume the PC is off, regardless of what
+    // PC_MONITOR reads. The original code mirrored PC_MONITOR to OPTO here, which
+    // auto-powered the PSU at boot; combined with the ESP.restart() on PC-off
+    // below, a single stray HIGH reading at startup caused an endless boot loop.
+    // The PSU is now turned on ONLY by the explicit power-on sequence.
+    digitalWrite(OPTO_PIN, LOW);
+    digitalWrite(POWER_LED_PIN, LOW);
     digitalWrite(STATUS_LED_PIN, HIGH);
     digitalWrite(EXTRA_PIN, LOW);
-    
-    // Initialize debounce variables
-    debounceLastRaw = initial;
-    debounceStableState = initial;
-    filteredPcState = initial;
-    
+
+    // Start the debounce/state machine as PC-off
+    debounceLastRaw = false;
+    debounceStableState = false;
+    filteredPcState = false;
+
     if (powerState == POWER_IDLE) {
-        pcIsOn = initial;
+        pcIsOn = false;
     }
-    
+
     powerState = POWER_IDLE;
 }
 
-// ================ FIXED updatePcState() WITH ESP.restart() ================
+// ================ updatePcState() - tracks PC state from PC_MONITOR ================
 void updatePcState() {
     bool currentMonitor = digitalRead(PC_MONITOR_PIN);
     bool newFilteredState = debouncePcState(currentMonitor);
@@ -114,33 +116,29 @@ void updatePcState() {
     if (filteredPcState != pcIsOn) {
 
         if (filteredPcState == HIGH) {
-            // PC POWERED ON
+            // PC POWERED ON (status only). Do NOT drive OPTO here - the PSU is
+            // turned on exclusively by the power-on sequence. Driving OPTO from a
+            // stray PC_MONITOR high was half of the boot loop.
             Serial.println("*** PC POWERED ON ***");
             pcIsOn = true;
             shutdownRequested = false;
             forceShutdown = false;
-            
+
             if (powerState == POWER_IDLE) {
-                digitalWrite(OPTO_PIN, HIGH);
                 digitalWrite(POWER_LED_PIN, HIGH);
             }
         } else {
-            // PC POWERED OFF
+            // PC POWERED OFF - cut the PSU, but do NOT ESP.restart(). The restart
+            // is what turned a stray PC_MONITOR transition into an endless boot
+            // loop. (Trade-off: Bluepad32 state is no longer cleared on PC-off.)
             Serial.println("*** PC POWERED OFF ***");
             pcIsOn = false;
             shutdownRequested = false;
             forceShutdown = false;
-            
+
             if (powerState == POWER_IDLE) {
                 digitalWrite(OPTO_PIN, LOW);
                 digitalWrite(POWER_LED_PIN, LOW);
-                
-                // ================ ESP.restart() WHEN PC POWERS OFF ================
-                // This clears Bluepad32's states and allows
-                // the controller to be re-detected
-                Serial.println("PC turned off - Restarting ESP32 in 2 seconds...");
-                delay(2000);
-                ESP.restart();
             }
         }
     }
