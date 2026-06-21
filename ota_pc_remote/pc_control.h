@@ -259,8 +259,15 @@ void handlePowerStates() {
                     digitalWrite(OPTO_PIN, OPTO_OFF);
                     digitalWrite(POWER_LED_PIN, LOW);
                     powerState = POWER_IDLE;
-                    
-                    Serial.println("PC OFF - Controller reset handled elsewhere");
+
+                    // Restart the ESP32 so Bluetooth is cleanly re-initialized for
+                    // the next PS5 controller wake. A button/web shutdown takes this
+                    // sequence path (not the IDLE path in updatePcState), so without
+                    // this the BT stack is left in a btStop->btStart state and the
+                    // controller can't reconnect to wake the PC a second time.
+                    Serial.println("PC OFF - Restarting ESP32 for clean Bluetooth (PS5 wake)...");
+                    delay(1000);
+                    ESP.restart();
                 }
             } else {
                 // PC hasn't powered off yet, reset the timer
