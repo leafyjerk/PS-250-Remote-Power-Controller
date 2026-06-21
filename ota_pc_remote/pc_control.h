@@ -68,12 +68,7 @@ void initPins() {
     pinMode(STATUS_LED_PIN, OUTPUT);
     pinMode(POWER_LED_PIN, OUTPUT);
     pinMode(BUTTON_PIN, INPUT_PULLUP);
-    // INPUT_PULLDOWN so the pin reads LOW when the BC-250 isn't driving its
-    // TPMS1 pin 9 (3V "running" signal). A plain INPUT floats, which is read
-    // HIGH at boot and makes the firmware mirror it to OPTO_PIN (turning the
-    // PSU on) and the power LED. (Original firmware needed pin 9 wired to stay
-    // stable; this makes it default-off when undriven.)
-    pinMode(PC_MONITOR_PIN, INPUT_PULLDOWN);
+    pinMode(PC_MONITOR_PIN, INPUT);
     pinMode(EXTRA_PIN, OUTPUT);
     
     bool initial = digitalRead(PC_MONITOR_PIN);
