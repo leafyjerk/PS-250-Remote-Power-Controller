@@ -153,6 +153,27 @@ won't load (you'll see `index.html NOT FOUND` on serial).
    **machine off**, and lock it. *(A new ESP32 has a new Bluetooth address, so the
    controller must be re-paired to it.)*
 
+### Using ONE controller for both wake and gaming (important)
+
+A Bluetooth controller normally bonds to only **one** host at a time, and this setup has
+**two** hosts: the **ESP32** (used to *wake* the machine while it's off) and the
+**BC-250's own Bluetooth** (used by Steam to *game* while it's on). Pairing to one
+overwrites the other — so out of the box you'd have to re-pair the controller every time
+you switch between waking and playing.
+
+**The fix: update your DualSense firmware.** Recent DualSense firmware adds **multiple
+saved Bluetooth pairings with button-shortcut switching**, so the controller can stay
+paired to *both* devices at once:
+
+- Update the controller by plugging it into a **PS5**, or via the **PlayStation
+  Accessories** app on Windows.
+- Pair it to **both** the **ESP32** (machine off → wakes it) **and** the **BC-250**
+  (machine on → Steam gaming).
+- Switch between the saved devices with the controller's **button combo** (see Sony's
+  instructions for the exact shortcut).
+
+Result: **one controller wakes the machine *and* plays games**, no re-pairing.
+
 ---
 
 ## How it works
@@ -189,6 +210,10 @@ won't load (you'll see `index.html NOT FOUND` on serial).
 - **PS5 controller won't pair / wake** → the machine must be **off** (Bluetooth is disabled
   while it's on), and a new ESP32 needs the controller re-paired (pairing mode). After a
   shutdown, give it ~3 s to reboot/re-init Bluetooth before waking.
+- **Controller keeps needing to be re-paired when switching between waking and gaming** →
+  that's the one-controller / two-Bluetooth-hosts conflict. Update the DualSense firmware
+  for multi-device pairing and switch with the button combo — see
+  *"Using ONE controller for both wake and gaming"* above.
 - **Web page blank / `NOT FOUND` on serial** → the LittleFS `data/` upload was skipped.
 - **WiFi won't connect** → must be a **2.4 GHz** network; double-check the password.
 - **Can't flash** → hold IO0 to GND + tap EN for manual download mode; these boards don't
