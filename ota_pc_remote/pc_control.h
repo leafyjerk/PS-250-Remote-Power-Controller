@@ -77,10 +77,10 @@ void initPins() {
     pinMode(EXTRA_PIN, OUTPUT);
     
     bool initial = digitalRead(PC_MONITOR_PIN);
-    digitalWrite(OPTO_PIN, initial ? HIGH : LOW);
+    digitalWrite(OPTO_PIN, initial ? OPTO_ON : OPTO_OFF);
     digitalWrite(POWER_LED_PIN, initial ? HIGH : LOW);
     digitalWrite(STATUS_LED_PIN, HIGH);
-    digitalWrite(EXTRA_PIN, LOW);
+    digitalWrite(EXTRA_PIN, EXTRA_OFF);
     
     // Initialize debounce variables
     debounceLastRaw = initial;
@@ -121,7 +121,7 @@ void updatePcState() {
             forceShutdown = false;
             
             if (powerState == POWER_IDLE) {
-                digitalWrite(OPTO_PIN, HIGH);
+                digitalWrite(OPTO_PIN, OPTO_ON);
                 digitalWrite(POWER_LED_PIN, HIGH);
             }
         } else {
@@ -132,7 +132,7 @@ void updatePcState() {
             forceShutdown = false;
             
             if (powerState == POWER_IDLE) {
-                digitalWrite(OPTO_PIN, LOW);
+                digitalWrite(OPTO_PIN, OPTO_OFF);
                 digitalWrite(POWER_LED_PIN, LOW);
                 
                 // ================ ESP.restart() WHEN PC POWERS OFF ================
@@ -205,8 +205,8 @@ void handlePowerStates() {
         case POWER_ON_START:
             Serial.println("POWER ON START - Setting relays");
             btStop();
-            digitalWrite(OPTO_PIN, HIGH);
-            digitalWrite(EXTRA_PIN, HIGH);
+            digitalWrite(OPTO_PIN, OPTO_ON);
+            digitalWrite(EXTRA_PIN, EXTRA_ON);
             digitalWrite(POWER_LED_PIN, HIGH);
             powerState = POWER_ON_WAITING_RELAY2;
             powerStateStartTime = now;
@@ -215,7 +215,7 @@ void handlePowerStates() {
         case POWER_ON_WAITING_RELAY2:
             if (now - powerStateStartTime >= 1000) {
                 Serial.println("RELAY 2: 1s passed - turning EXTRA_PIN OFF");
-                digitalWrite(EXTRA_PIN, LOW);
+                digitalWrite(EXTRA_PIN, EXTRA_OFF);
                 powerState = POWER_ON_COMPLETE;
                 powerStateStartTime = now;
             }
@@ -227,7 +227,7 @@ void handlePowerStates() {
                     Serial.println("PC power-on confirmed - PC is now running");
                 } else {
                     Serial.println("WARNING: PC did not power on! Turning relay OFF");
-                    digitalWrite(OPTO_PIN, LOW);
+                    digitalWrite(OPTO_PIN, OPTO_OFF);
                     btStart();
                 }
                 powerState = POWER_IDLE;
@@ -236,7 +236,7 @@ void handlePowerStates() {
             
         case POWER_OFF_START:
             Serial.println("Normal shutdown - EXTRA_PIN HIGH for 500ms");
-            digitalWrite(EXTRA_PIN, HIGH);
+            digitalWrite(EXTRA_PIN, EXTRA_ON);
             digitalWrite(POWER_LED_PIN, LOW);
             powerState = POWER_OFF_WAITING;
             powerStateStartTime = now;
@@ -245,7 +245,7 @@ void handlePowerStates() {
         case POWER_OFF_WAITING:
             if (now - powerStateStartTime >= 500) {
                 Serial.println("Shutdown pulse complete - releasing EXTRA_PIN");
-                digitalWrite(EXTRA_PIN, LOW);
+                digitalWrite(EXTRA_PIN, EXTRA_OFF);
                 powerState = POWER_OFF_WAITING_POWEROFF;
                 powerStateStartTime = now;
             }
@@ -256,7 +256,7 @@ void handlePowerStates() {
             if (filteredPcState == LOW) {  // USE FILTERED STATE
                 if (now - powerStateStartTime >= 4000) {
                     Serial.println("PC power-off confirmed - turning relay OFF");
-                    digitalWrite(OPTO_PIN, LOW);
+                    digitalWrite(OPTO_PIN, OPTO_OFF);
                     digitalWrite(POWER_LED_PIN, LOW);
                     powerState = POWER_IDLE;
                     
@@ -270,7 +270,7 @@ void handlePowerStates() {
             
         case POWER_FORCE_START:
             Serial.println("Force shutdown - OPTO_PIN HIGH for 5000ms");
-            digitalWrite(OPTO_PIN, HIGH);
+            digitalWrite(OPTO_PIN, OPTO_ON);
             digitalWrite(POWER_LED_PIN, HIGH);
             powerState = POWER_FORCE_WAITING;
             powerStateStartTime = now;
@@ -279,7 +279,7 @@ void handlePowerStates() {
         case POWER_FORCE_WAITING:
             if (now - powerStateStartTime >= 5000) {
                 Serial.println("Force shutdown pulse complete - waiting for PC to power off");
-                digitalWrite(OPTO_PIN, LOW);
+                digitalWrite(OPTO_PIN, OPTO_OFF);
                 forceShutdown = true;
                 forceShutdownStartTime = now;
                 powerState = POWER_OFF_WAITING_POWEROFF;
@@ -296,7 +296,7 @@ void handlePcStates() {
     if (forceShutdown) {
         if (filteredPcState == LOW) {
             forceShutdown = false;
-            digitalWrite(OPTO_PIN, LOW);
+            digitalWrite(OPTO_PIN, OPTO_OFF);
             digitalWrite(POWER_LED_PIN, LOW);
         }
     }

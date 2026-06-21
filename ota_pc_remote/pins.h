@@ -9,6 +9,16 @@
 #define PC_MONITOR_PIN 4 // >> TO BC-250 TPMS1 PIN9 3V 
 #define EXTRA_PIN 17 // DEVBOARD RELAY2 (BC-250 POWER BUTTON PIN TO) TPMS1 PIN 17
 
+// RELAY POLARITY: this relay module is ACTIVE-LOW (driving the input LOW
+// energizes the relay). The firmware logic is written as "ON"/"OFF", so drive
+// these macros instead of raw HIGH/LOW and the polarity lives in one place.
+// If you switch to an active-high module (or flip its high-trigger jumper),
+// set the *_ON macros to HIGH and *_OFF to LOW.
+#define OPTO_ON   LOW
+#define OPTO_OFF  HIGH
+#define EXTRA_ON  LOW
+#define EXTRA_OFF HIGH
+
 // NEOPIXEL
 #define NEOPIXEL_PIN 19 // >> NEOPIXEL DATA IN (DIN)
 

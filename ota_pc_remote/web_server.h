@@ -261,8 +261,8 @@ void setupWebServer() {
     // API: Status
     server.on("/api/status", HTTP_GET, []() {
         bool currentMonitor = getStablePcState();
-        bool currentOpto = digitalRead(OPTO_PIN);
-        bool currentExtra = digitalRead(EXTRA_PIN);
+        bool currentOpto = (digitalRead(OPTO_PIN) == OPTO_ON);   // active-low relay
+        bool currentExtra = (digitalRead(EXTRA_PIN) == EXTRA_ON); // active-low relay
         
         StaticJsonDocument<300> doc;
         doc["pcOn"] = currentMonitor;
