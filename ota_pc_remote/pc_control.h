@@ -68,7 +68,12 @@ void initPins() {
     pinMode(STATUS_LED_PIN, OUTPUT);
     pinMode(POWER_LED_PIN, OUTPUT);
     pinMode(BUTTON_PIN, INPUT_PULLUP);
-    pinMode(PC_MONITOR_PIN, INPUT);
+    // INPUT_PULLDOWN so GPIO4 reads LOW when the BC-250 isn't actively driving
+    // TPMS1 pin 9 high. Without it the pin floats HIGH at boot; initPins mirrors
+    // that to OPTO_PIN (auto-powering the PSU), then it drops LOW and the
+    // firmware ESP.restart()s on "PC off" -> endless boot loop (confirmed via
+    // serial). Verified on hardware 2026-06-20.
+    pinMode(PC_MONITOR_PIN, INPUT_PULLDOWN);
     pinMode(EXTRA_PIN, OUTPUT);
     
     bool initial = digitalRead(PC_MONITOR_PIN);
