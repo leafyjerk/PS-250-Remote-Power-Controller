@@ -1,4 +1,4 @@
-# BC-250 Remote PSU Power Controller
+# PS-250 Remote Power Controller
 
 An **integrated ESP32 + 2-channel relay board** that remotely powers an AMD **BC-250**
 on and off, with a web interface, a physical power button, a **PS5 DualSense
