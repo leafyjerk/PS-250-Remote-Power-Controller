@@ -4,6 +4,8 @@
 #include "LittleFS.h"
 #include <Bluepad32.h>
 #include <ArduinoJson.h>
+#include <Wire.h>
+#include <Adafruit_INA219.h>
 
 #include "version.h"
 #include "pins.h"
@@ -33,6 +35,65 @@ String ps5MacAddress = "";
 bool ps5Enabled = false;
 bool ps5AutoConnect = false;
 unsigned long lastPS5ConnectionAttempt = 0;
+
+// INA219 current sensing (Steam Controller puck)
+Adafruit_INA219 ina219;
+bool ina219Present = false;
+unsigned long lastCurrentSample = 0;
+const unsigned long currentSampleInterval = 20;   // 50 Hz sampling
+bool inaLogging = false;   // set true to stream "INA,millis,mA" for tuning
+
+// ---------------- PUCK WAKE DETECTION ----------------
+// Powers the console on based on the Steam Controller puck's current draw,
+// measured by an INA219 in the puck's 5V standby feed.
+//
+// Measured states (mA):
+//   puck idle (controller asleep/absent): flat ~5.6
+//   controller docked & topped off:       flat ~14
+//   Steam button press / controller wake: ALTERNATING 5.6 <-> 10-17 spikes
+//
+// TRIGGER MODES:
+//   PUCK_MODE_CONTROLLER_ONLY    - Steam button press only. The wake chatter
+//       must persist PUCK_SUSTAIN_MS; dock/undock transitions self-clear in
+//       ~1 s and never fire. Most conservative (toddler-proof-ish).
+//   PUCK_MODE_CONTROLLER_AND_PUCK - Steam button press OR lifting the
+//       controller off the charging puck. Lift-off is detected as a
+//       transition out of the stable flat-high "docked" state.
+#define PUCK_MODE_CONTROLLER_ONLY     1
+#define PUCK_MODE_CONTROLLER_AND_PUCK 2
+const int PUCK_MODE = PUCK_MODE_CONTROLLER_ONLY;
+
+const float PUCK_SPIKE_mA = 9.0;    // sample above this counts as a radio spike
+const float PUCK_QUIET_mA = 8.0;    // sample below this counts as idle floor
+const int   PUCK_WINDOW   = 50;     // 1 second of samples at 50 Hz
+// Spike density separates the signals (measured):
+//   idle controller pinging the puck sporadically:  5-8 spikes/window
+//   genuine Steam-button wake chatter:             12-20 spikes/window
+const int   PUCK_MIN_SPIKES = 12;   // spikes required in window (wake pattern)
+const int   PUCK_MIN_LOWS   = 20;   // lows required in window (proves alternation)
+// Dock/undock transitions produce a mixed window for at most ~1 s (until old
+// samples flush out). Real Steam-button chatter runs continuously for many
+// seconds. Requiring the pattern to PERSIST filters out all handling events.
+const unsigned long PUCK_SUSTAIN_MS = 2500;     // pattern must persist this long
+// Real chatter density fluctuates window to window; allow brief dips below
+// threshold without resetting the persistence timer.
+const unsigned long PUCK_PATTERN_GRACE_MS = 600;
+const unsigned long PUCK_ARM_QUIET_MS = 5000;   // pattern-free time before arming
+const unsigned long PUCK_BOOT_LOCKOUT_MS = 15000; // ignore boot-time noise
+// Docked-state recognition (used by CONTROLLER_AND_PUCK lift-off detection):
+const int PUCK_DOCKED_MIN_SPIKES = 45;  // window nearly all high = docked
+const int PUCK_DOCKED_MAX_LOWS   = 2;
+const int PUCK_LIFT_MIN_LOWS     = 10;  // this many lows after docked = lifted
+
+uint8_t puckWindow[PUCK_WINDOW];    // 0 = low, 1 = spike, 2 = mid/ignore
+int  puckIdx = 0;
+bool puckWindowFull = false;
+bool puckArmed = false;
+bool puckWasDocked = false;           // last confirmed stable state was docked
+unsigned long puckQuietSince = 0;
+unsigned long puckPatternSince = 0;   // 0 = pattern not currently present
+unsigned long puckPatternLastSeen = 0;
+unsigned long lastPuckTrigger = 0;
 
 // OPTIMIZED INTERVALS
 unsigned long lastPinRead = 0;
@@ -248,14 +309,54 @@ void setup() {
     initPins();
     Serial.println("Pins initialized");
 
+    // INA219 current sensor - I2C diagnostic on GPIO 25/26
+    const int pinA = 25, pinB = 26;
+    int foundSDA = -1, foundSCL = -1;
+    for (int o = 0; o < 2; o++) {
+        int sda = (o == 0) ? pinA : pinB;
+        int scl = (o == 0) ? pinB : pinA;
+        Wire.end();
+        Wire.begin(sda, scl);
+        Wire.setClock(50000);
+        delay(50);
+        Serial.printf("Scanning SDA=%d SCL=%d...\n", sda, scl);
+        int found = 0;
+        for (byte addr = 1; addr < 127; addr++) {
+            Wire.beginTransmission(addr);
+            if (Wire.endTransmission() == 0) {
+                Serial.printf("  DEVICE at 0x%02X\n", addr);
+                foundSDA = sda; foundSCL = scl;
+                found++;
+            }
+        }
+        if (!found) Serial.println("  nothing");
+    }
+
+    if (foundSDA >= 0) {
+        Wire.end();
+        Wire.begin(foundSDA, foundSCL);
+        Wire.setClock(100000);
+        if (ina219.begin()) {
+            ina219.setCalibration_16V_400mA();
+            ina219Present = true;
+            Serial.printf("INA219 initialized (SDA=%d SCL=%d)\n", foundSDA, foundSCL);
+        } else {
+            Serial.println("INA219 device seen but init failed");
+        }
+    } else {
+        Serial.println("INA219 not found - check wiring");
+    }
+
+    puckQuietSince = millis();
+
     initNeopixel();
     Serial.println("NeoPixel initialized");
     
-    Serial.print("PC_MONITOR_PIN (14): ");
+    Serial.print("PC_MONITOR_PIN (4): ");
     Serial.println(digitalRead(PC_MONITOR_PIN) ? "HIGH" : "LOW");
     Serial.print("OPTO_PIN (16): ");
     Serial.println(digitalRead(OPTO_PIN) ? "HIGH" : "LOW");
-    Serial.print("EXTRA_PIN (32): ");  // ADDED: EXTRA_PIN state
+    Serial.print("EXTRA_PIN (17): ");
     Serial.println(digitalRead(EXTRA_PIN) ? "HIGH" : "LOW");
     
     filteredPcState = digitalRead(PC_MONITOR_PIN);
@@ -387,6 +488,106 @@ void loop() {
     if (now - lastPinRead >= pinReadInterval) {
         cachedButtonState = digitalRead(BUTTON_PIN);
         lastPinRead = now;
+    }
+
+    // ================ PUCK CURRENT SENSING & WAKE DETECTION ================
+    if (ina219Present && now - lastCurrentSample >= currentSampleInterval) {
+        lastCurrentSample = now;
+        float mA = ina219.getCurrent_mA();
+
+        if (inaLogging) {
+            Serial.printf("INA,%lu,%.2f\n", now, mA);
+        }
+
+        // Classify sample and push into rolling 1-second window
+        uint8_t c = (mA >= PUCK_SPIKE_mA) ? 1 : ((mA <= PUCK_QUIET_mA) ? 0 : 2);
+        puckWindow[puckIdx] = c;
+        puckIdx = (puckIdx + 1) % PUCK_WINDOW;
+        if (puckIdx == 0) puckWindowFull = true;
+
+        if (puckWindowFull) {
+            int spikes = 0, lows = 0;
+            for (int i = 0; i < PUCK_WINDOW; i++) {
+                if (puckWindow[i] == 1) spikes++;
+                else if (puckWindow[i] == 0) lows++;
+            }
+            bool wakePattern = (spikes >= PUCK_MIN_SPIKES && lows >= PUCK_MIN_LOWS);
+            bool dockedNow   = (spikes >= PUCK_DOCKED_MIN_SPIKES && lows <= PUCK_DOCKED_MAX_LOWS);
+
+            // Common guard for any trigger path
+            bool canTrigger = puckArmed && powerState == POWER_IDLE &&
+                              now > PUCK_BOOT_LOCKOUT_MS &&
+                              now - lastPuckTrigger > 10000;
+
+            if (pcIsOn) {
+                // PC running: detection irrelevant, stay disarmed
+                puckArmed = false;
+                puckQuietSince = now;
+                puckPatternSince = 0;
+                puckWasDocked = false;
+            } else {
+                // ---- Lift-off trigger (PUCK_MODE_CONTROLLER_AND_PUCK only) ----
+                // Fires on the transition out of a confirmed stable docked
+                // state: window was flat-high, now shows a burst of lows.
+                if (PUCK_MODE == PUCK_MODE_CONTROLLER_AND_PUCK &&
+                    puckWasDocked && !dockedNow && lows >= PUCK_LIFT_MIN_LOWS &&
+                    canTrigger) {
+                    Serial.printf("PUCK: Controller lifted off puck (spikes=%d lows=%d) - POWER ON\n",
+                                  spikes, lows);
+                    lastPuckTrigger = now;
+                    puckArmed = false;
+                    puckWasDocked = false;
+                    puckQuietSince = now;
+                    puckPatternSince = 0;
+                    startPowerOn();
+                }
+                // Remember docked state only when the window is unambiguous
+                else if (dockedNow) {
+                    puckWasDocked = true;
+                } else if (lows >= PUCK_LIFT_MIN_LOWS && !wakePattern) {
+                    // settled back to idle without triggering (mode 1, or
+                    // trigger guards not met) - clear the docked memory
+                    puckWasDocked = false;
+                }
+
+                // ---- Steam button trigger (both modes) ----
+                if (wakePattern) {
+                    // Track how long the pattern has been continuously present.
+                    // Dock/undock transitions self-clear within ~1 s; only a
+                    // real Steam-button wake sustains past PUCK_SUSTAIN_MS.
+                    if (puckPatternSince == 0) puckPatternSince = now;
+                    puckPatternLastSeen = now;
+
+                    if (canTrigger && now - puckPatternSince >= PUCK_SUSTAIN_MS) {
+                        Serial.printf("PUCK: Sustained wake signature (%lums, spikes=%d lows=%d) - POWER ON\n",
+                                      now - puckPatternSince, spikes, lows);
+                        lastPuckTrigger = now;
+                        puckArmed = false;
+                        puckQuietSince = now;
+                        puckPatternSince = 0;
+                        startPowerOn();
+                    }
+                    // Pattern present: keep resetting the quiet timer so we
+                    // don't re-arm while the controller is actively talking
+                    puckQuietSince = now;
+                } else {
+                    // Pattern below threshold. Real wake chatter fluctuates,
+                    // so tolerate brief dips before resetting the persistence
+                    // timer; only a sustained absence counts as "broken".
+                    if (puckPatternSince != 0 &&
+                        now - puckPatternLastSeen > PUCK_PATTERN_GRACE_MS) {
+                        puckPatternSince = 0;
+                    }
+                    // No wake pattern (flat idle or flat docked). Arm after a
+                    // sustained pattern-free period so a controller that's
+                    // still awake right after shutdown can't re-trigger.
+                    if (!puckArmed && now - puckQuietSince >= PUCK_ARM_QUIET_MS) {
+                        puckArmed = true;
+                        Serial.println("PUCK: Armed");
+                    }
+                }
+            }
+        }
     }
 
     // ================ PC STATE HANDLING ================
